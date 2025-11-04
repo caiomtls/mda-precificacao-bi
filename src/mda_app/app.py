@@ -75,18 +75,20 @@ def criar_filtros_sidebar(gdf):
         if 'municipios_selecionados' not in st.session_state:
             st.session_state.municipios_selecionados = []
         
-        # Multiselect com placeholder "Todos" e key fixa
+        # Multiselect com placeholder "Todos"
         municipios_sel = st.sidebar.multiselect(
             "Filtro de Municípios",
             options=municipios,
             default=st.session_state.municipios_selecionados,
             placeholder="Todos os municípios",
-            help="Deixe vazio para mostrar todos, ou selecione um ou mais municípios específicos. Você também pode clicar no mapa para selecionar.",
+            help="Deixe vazio para mostrar todos, ou selecione um ou mais municípios específicos.",
             key="multiselect_municipios"
         )
         
-        # Atualizar session_state com a seleção atual do multiselect
-        st.session_state.municipios_selecionados = municipios_sel
+        # Atualizar session_state apenas se houver mudança real
+        if municipios_sel != st.session_state.municipios_selecionados:
+            st.session_state.municipios_selecionados = municipios_sel
+
         
         # Se nenhum município selecionado, usar todos
         if not municipios_sel:
@@ -94,54 +96,18 @@ def criar_filtros_sidebar(gdf):
     else:
         municipios_sel = []
     
-    # Critérios disponíveis
-    criterios_labels = {
-        "valor_medio": "Valor Médio",
-        "valor_mun_perim": "Valor por Perímetro", 
-        "valor_mun_area": "Valor por Área",
-        "nota_media": "Grau de Dificuldade Médio",
-        "nota_veg": "Vegetação",
-        "nota_area": "Área Média dos Lotes CAR",
-        "nota_relevo": "Relevo",
-        "nota_insalub": "Insalubridade (Dengue)",
-        "nota_insalub_2": "Insalubridade Ajustada",
-        "nota_total_q1": "Precipitação - Trimestre 1",
-        "nota_total_q2": "Precipitação - Trimestre 2", 
-        "nota_total_q3": "Precipitação - Trimestre 3",
-        "nota_total_q4": "Precipitação - Trimestre 4",
-    }
-    criterio_explicacao = {
-        "valor_medio": "Média entre valor por perímetro e valor por área.",
-        "nota_veg": "Grau de dificuldade relativo à vegetação do local. Calculada de acordo com a classe predominante no município (aberta, intermediária e fechada) e média de ocorrência de classe no intervalo.",
-        "nota_area": "Grau de dificuldade relativo à área média de lotes CAR na área do município. Acima de 35ha, entre 15 e 35ha, até 15ha, conforme máximas e mínimas.",
-        "nota_relevo": "Grau de dificuldade relativo ao relevo predominante no município.",
-        "nota_insalub": "Grau de dificuldade relativo à insalubridade (casos de dengue por município). Distribuída conforme máximos e mínimos gerais.",
-        "nota_insalub_2": "Grau de dificuldade relativo à insalubridade ajustada, incluindo incidência de ataques de animais peçonhentos.",
-        "valor_mun_perim": "Valor total do município em relação ao perímetro total de imóveis CAR, utilizando dados do Quadro II da Tabela de Rendimento e Preço do Anexo I da INSTRUÇÃO NORMATIVA SEI/INCRA.",
-        "valor_mun_area": "Valor total do município em relação à área georreferenciável.",
-        "nota_media": "Média das notas utilizada para composição do valor final.",
-        "nota_total_q1": "Grau de dificuldade total somada para o trimestre 1",
-        "nota_total_q2": "Grau de dificuldade total somada para o trimestre 2",
-        "nota_total_q3": "Grau de dificuldade total somada para o trimestre 3", 
-        "nota_total_q4": "Grau de dificuldade total somada para o trimestre 4"
-    }
+    # Critério fixo em nota_media para melhor performance
+    criterio_sel = "nota_media"
     
-    # Seleção de critério
-    criterio_sel = st.sidebar.selectbox(
-        "Selecione o critério para visualização", 
-        options=list(criterio_explicacao.keys()),
-        index=list(criterio_explicacao.keys()).index("nota_media")
-    )
-    
-    # Slider do critério selecionado
+    # Slider do critério (Grau de Dificuldade Médio)
     crit_min, crit_max = float(gdf[criterio_sel].min()), float(gdf[criterio_sel].max())
     crit_sel = st.sidebar.slider(
-        f"{criterios_labels[criterio_sel]}", 
+        "Grau de Dificuldade Médio", 
         crit_min, crit_max, 
         (crit_min, crit_max)
     )
     
-    return uf_sel, municipios_sel, criterio_sel, crit_sel, criterios_labels, criterio_explicacao
+    return uf_sel, municipios_sel, criterio_sel, crit_sel
 
 
 def aplicar_filtros(gdf, uf_sel, municipios_sel, criterio_sel, crit_sel):
@@ -170,7 +136,7 @@ def main():
     gdf = processar_dados_geograficos(gdf)
     
     # Criar filtros
-    uf_sel, municipios_sel, criterio_sel, crit_sel, criterios_labels, criterio_explicacao = criar_filtros_sidebar(gdf)
+    uf_sel, municipios_sel, criterio_sel, crit_sel = criar_filtros_sidebar(gdf)
     
     # Aplicar filtros
     gdf_filtrado = aplicar_filtros(gdf, uf_sel, municipios_sel, criterio_sel, crit_sel)
@@ -269,44 +235,62 @@ predominante no município (aberta, intermediária e fechada) e nota específica
     
     # Aba Mapa (índice 0)
     with abas[0]:
-        # Criar mapa com interação de cliques
+        # Criar mapa
         m = criar_mapa(gdf_filtrado, criterio_sel, mostrar_controle_camadas=True)
         
         from streamlit_folium import st_folium
+        from shapely.geometry import Point
         
-        # A chave é baseada apenas em critério e UFs para permitir atualização quando necessário
-        mapa_key = f"mapa_{criterio_sel}_{'_'.join(sorted(uf_sel))}"
+        # Inicializar controle de último clique
+        if 'ultimo_clique' not in st.session_state:
+            st.session_state.ultimo_clique = None
         
-        # Renderizar mapa capturando cliques
-        output_map = st_folium(
+        # Renderizar mapa e capturar eventos
+        map_data = st_folium(
             m, 
             width=None, 
-            height=500, 
-            key=mapa_key
+            height=500,
+            key="mapa_principal"
         )
         
-        # Processar clique no mapa
-        if output_map and output_map.get("last_object_clicked"):
-            # Obter coordenadas do clique
-            lat = output_map["last_object_clicked"]["lat"]
-            lng = output_map["last_object_clicked"]["lng"]
+        # Tentar diferentes formas de capturar clique
+        clicked_coords = None
+        
+        if map_data:
+            # Tentar last_clicked
+            if map_data.get("last_clicked"):
+                clicked_coords = (
+                    map_data["last_clicked"].get("lat"),
+                    map_data["last_clicked"].get("lng")
+                )
+            # Tentar last_object_clicked
+            elif map_data.get("last_object_clicked"):
+                clicked_coords = (
+                    map_data["last_object_clicked"].get("lat"),
+                    map_data["last_object_clicked"].get("lng")
+                )
+        
+        # Processar clique se houver coordenadas válidas
+        if clicked_coords and clicked_coords[0] and clicked_coords[1]:
+            lat, lng = clicked_coords
             
-            # Determinar qual coluna de nome usar
-            coluna_nome = 'mun_nome' if 'mun_nome' in gdf_filtrado.columns else 'NM_MUN'
-            
-            # Encontrar o município clicado
-            from shapely.geometry import Point
-            ponto_clicado = Point(lng, lat)
-            
-            for idx, row in gdf_filtrado.iterrows():
-                if row['geometry'].contains(ponto_clicado):
-                    municipio_clicado = row[coluna_nome]
-                    
-                    # Adicionar ao session_state se ainda não estiver
-                    if municipio_clicado not in st.session_state.municipios_selecionados:
-                        st.session_state.municipios_selecionados.append(municipio_clicado)
-                        st.rerun()
-                    break
+            # Verificar se é um novo clique
+            if st.session_state.ultimo_clique != clicked_coords:
+                st.session_state.ultimo_clique = clicked_coords
+                
+                # Encontrar município clicado
+                ponto_clicado = Point(lng, lat)
+                coluna_nome = 'mun_nome' if 'mun_nome' in gdf_filtrado.columns else 'NM_MUN'
+                
+                for idx, row in gdf_filtrado.iterrows():
+                    if row['geometry'].contains(ponto_clicado):
+                        municipio_clicado = row[coluna_nome]
+                        
+                        # Adicionar ao filtro se não estiver
+                        if municipio_clicado not in st.session_state.municipios_selecionados:
+                            st.session_state.municipios_selecionados.append(municipio_clicado)
+                            st.rerun()
+                        break
         
         st.markdown("---")
         
@@ -320,117 +304,58 @@ predominante no município (aberta, intermediária e fechada) e nota específica
             # Múltiplos municípios - mostrar dados agregados
             st.markdown("<h3 style='text-align: center;'>Informações Adicionais</h3>", unsafe_allow_html=True)
         
-        # Linha 1: 5 colunas
+        # Uma única linha com todas as métricas (sempre 5 colunas)
         col1, col2, col3, col4, col5 = st.columns(5)
         
         if len(gdf_filtrado) == 1:
-            # Dados do município específico
+            # Um município: mostra em colunas alternadas (1, 3, 5)
             municipio_especifico = gdf_filtrado.iloc[0]
             
-            if 'area_georef' in municipio_especifico:
+            if 'area_georef' in gdf_filtrado.columns:
                 area_fmt = f"{municipio_especifico['area_georef']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                 col1.metric("Área total do Município (ha)", area_fmt)
             
-            if 'perimetro_total_car' in municipio_especifico:
-                perimetro_fmt = f"{municipio_especifico['perimetro_total_car']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                col2.metric("Perímetro Georreferencial do Município (km)", perimetro_fmt)
-            
-            if 'area_car_media' in municipio_especifico:
+            if 'area_car_media' in gdf_filtrado.columns:
                 tamanho_fmt = f"{municipio_especifico['area_car_media']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                 col3.metric("Tamanho Médio Imóvel CAR (ha)", tamanho_fmt)
             
-            if 'perimetro_medio_car' in municipio_especifico:
-                perimetro_medio_fmt = f"{municipio_especifico['perimetro_medio_car']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                col4.metric("Perímetro Médio Imóvel CAR (km)", perimetro_medio_fmt)
-            
             # Valor médio por hectare
-            if 'valor_mun_area' in municipio_especifico and 'area_georef' in municipio_especifico:
+            if 'valor_mun_area' in gdf_filtrado.columns and 'area_georef' in gdf_filtrado.columns:
                 if municipio_especifico['area_georef'] > 0:
                     valor_ha = municipio_especifico['valor_mun_area'] / municipio_especifico['area_georef']
                     valor_fmt = f"R$ {valor_ha:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                     col5.metric("Valor Médio/ha", valor_fmt)
         else:
-            # Dados agregados
+            # Múltiplos municípios: 5 colunas
+            col1, col2, col3, col4, col5 = st.columns(5)
+            
             if 'area_georef' in gdf_filtrado.columns:
                 area_total = gdf_filtrado['area_georef'].sum()
                 area_fmt = f"{area_total:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
                 col1.metric("Área Total (ha)", area_fmt)
             
-            if 'perimetro_total_car' in gdf_filtrado.columns:
-                perimetro_total = gdf_filtrado['perimetro_total_car'].sum()
-                perimetro_fmt = f"{perimetro_total:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                col2.metric("Perímetro Total Georreferenciável (km)", perimetro_fmt)
-            
             if 'area_car_media' in gdf_filtrado.columns:
                 tamanho_medio = gdf_filtrado['area_car_media'].mean()
                 tamanho_fmt = f"{tamanho_medio:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                col3.metric("Tamanho Médio Imóvel CAR (ha)", tamanho_fmt)
-            
-            if 'perimetro_medio_car' in gdf_filtrado.columns:
-                perimetro_medio = gdf_filtrado['perimetro_medio_car'].mean()
-                perimetro_medio_fmt = f"{perimetro_medio:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                col4.metric("Perímetro Médio Imóvel CAR (km)", perimetro_medio_fmt)
+                col2.metric("Tamanho Médio Imóvel CAR (ha)", tamanho_fmt)
             
             # Valor médio por hectare
             if 'valor_mun_area' in gdf_filtrado.columns and 'area_georef' in gdf_filtrado.columns:
                 gdf_temp = gdf_filtrado[gdf_filtrado['area_georef'] > 0].copy()
                 if len(gdf_temp) > 0:
                     gdf_temp['valor_por_ha'] = gdf_temp['valor_mun_area'] / gdf_temp['area_georef']
+                    
                     valor_medio_ha = gdf_temp['valor_por_ha'].mean()
                     valor_medio_fmt = f"R$ {valor_medio_ha:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    col5.metric("Valor Médio/ha", valor_medio_fmt)
-        
-        # Linha 2: 5 colunas
-        col1, col2, col3, col4, col5 = st.columns(5)
-        
-        if len(gdf_filtrado) == 1:
-            # Dados do município específico
-            municipio_especifico = gdf_filtrado.iloc[0]
-            
-            # Valor médio por quilômetro
-            if 'valor_mun_perim' in municipio_especifico and 'perimetro_total_car' in municipio_especifico:
-                if municipio_especifico['perimetro_total_car'] > 0:
-                    valor_km = municipio_especifico['valor_mun_perim'] / municipio_especifico['perimetro_total_car']
-                    valor_km_fmt = f"R$ {valor_km:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    col1.metric("Valor Médio/km", valor_km_fmt)
-        else:
-            # Dados agregados
-            # Valor médio por quilômetro
-            if 'valor_mun_perim' in gdf_filtrado.columns and 'perimetro_total_car' in gdf_filtrado.columns:
-                gdf_temp = gdf_filtrado[gdf_filtrado['perimetro_total_car'] > 0].copy()
-                if len(gdf_temp) > 0:
-                    gdf_temp['valor_por_km'] = gdf_temp['valor_mun_perim'] / gdf_temp['perimetro_total_car']
-                    valor_medio_km = gdf_temp['valor_por_km'].mean()
-                    valor_medio_km_fmt = f"R$ {valor_medio_km:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    col1.metric("Valor Médio/km", valor_medio_km_fmt)
-            
-            # Valores Min/Max por hectare
-            if 'valor_mun_area' in gdf_filtrado.columns and 'area_georef' in gdf_filtrado.columns:
-                gdf_temp = gdf_filtrado[gdf_filtrado['area_georef'] > 0].copy()
-                if len(gdf_temp) > 0:
-                    gdf_temp['valor_por_ha'] = gdf_temp['valor_mun_area'] / gdf_temp['area_georef']
+                    col3.metric("Valor Médio/ha", valor_medio_fmt)
                     
                     valor_min = gdf_temp['valor_por_ha'].min()
                     valor_min_fmt = f"R$ {valor_min:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    col2.metric("Valor Mínimo/ha", valor_min_fmt)
+                    col4.metric("Valor Mínimo/ha", valor_min_fmt)
                     
                     valor_max = gdf_temp['valor_por_ha'].max()
                     valor_max_fmt = f"R$ {valor_max:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    col3.metric("Valor Máximo/ha", valor_max_fmt)
-            
-            # Valores Min/Max por quilômetro
-            if 'valor_mun_perim' in gdf_filtrado.columns and 'perimetro_total_car' in gdf_filtrado.columns:
-                gdf_temp = gdf_filtrado[gdf_filtrado['perimetro_total_car'] > 0].copy()
-                if len(gdf_temp) > 0:
-                    gdf_temp['valor_por_km'] = gdf_temp['valor_mun_perim'] / gdf_temp['perimetro_total_car']
-                    
-                    valor_min_km = gdf_temp['valor_por_km'].min()
-                    valor_min_km_fmt = f"R$ {valor_min_km:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    col4.metric("Valor Mínimo/km", valor_min_km_fmt)
-                    
-                    valor_max_km = gdf_temp['valor_por_km'].max()
-                    valor_max_km_fmt = f"R$ {valor_max_km:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    col5.metric("Valor Máximo/km", valor_max_km_fmt)
+                    col5.metric("Valor Máximo/ha", valor_max_fmt)
         
         st.markdown("---")
         
@@ -617,15 +542,15 @@ predominante no município (aberta, intermediária e fechada) e nota específica
             st.plotly_chart(fig_gauge, use_container_width=True)
         
         st.markdown("---")
-        
-        # Valores Totais Trimestrais por Graus de Dificuldade
+
+        # Valores Totais Trimestrais por Nota
         st.markdown("""
                     <div style='text-align: center; display: flex; align-items: center; justify-content: center;'>
-                        <h3 style='margin: 0; padding-right: 5px;'>Valores Totais Trimestrais por Grau de Dificuldade</h3>
+                        <h3 style='margin: 0; padding-right: 5px;'>Valores Totais Trimestrais por Nota</h3>
                         <div class="tooltip">
                             <span style='cursor: help; color: #0066cc; font-size: 16px;'>ⓘ</span>
                             <span class="tooltiptext">
-                                Valores totais calculados para cada trimestre considerando o grau de dificuldade total 
+                                Valores totais calculados para cada trimestre considerando a nota total 
                                 do período e a área georreferenciável. O cálculo é feito aplicando-se 
                                 as faixas de valores da tabela INCRA de acordo com a pontuação obtida 
                                 em cada trimestre.
