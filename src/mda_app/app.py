@@ -309,8 +309,8 @@ predominante no município (aberta, intermediária e fechada) e nota específica
             col1, col2, col3, col4 = st.columns(4)
             municipio_especifico = gdf_filtrado.iloc[0]
             
-            if 'area_municip' in gdf_filtrado.columns:
-                area_fmt = f"{municipio_especifico['area_municip']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            if 'area_georef' in gdf_filtrado.columns:
+                area_fmt = f"{municipio_especifico['area_georef']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                 col1.metric("Área total do Município (ha)", area_fmt)
             
             if 'area_car_total' in gdf_filtrado.columns:
@@ -331,8 +331,8 @@ predominante no município (aberta, intermediária e fechada) e nota específica
             # Múltiplos municípios: 5 colunas
             col1, col2, col3, col4, col5 = st.columns(5)
             
-            if 'area_municip' in gdf_filtrado.columns:
-                area_total = gdf_filtrado['area_municip'].sum()
+            if 'area_georef' in gdf_filtrado.columns:
+                area_total = gdf_filtrado['area_georef'].sum()
                 area_fmt = f"{area_total:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
                 col1.metric("Área Total (ha)", area_fmt)
             
@@ -449,20 +449,20 @@ predominante no município (aberta, intermediária e fechada) e nota específica
                 st.plotly_chart(fig_barras, use_container_width=True)
         
         with col_grafico2:
-            st.markdown("<h4 style='text-align: center;'>Percentual de Área Georreferenciada</h4>", unsafe_allow_html=True)
+            st.markdown("<h4 style='text-align: center;'>Percentual de Área Georreferenciável</h4>", unsafe_allow_html=True)
             
-            # Calcular percentagem de área já georreferenciada (inverso da área georreferenciável)
+            # Calcular percentagem de área georreferenciável da coluna percent_area_georef
             if len(gdf_filtrado) == 1:
                 # Para município individual - usar a coluna percent_area_georef
                 municipio_especifico = gdf_filtrado.iloc[0]
                 if 'percent_area_georef' in municipio_especifico:
-                    percentual = 100.0 - float(municipio_especifico['percent_area_georef'])
+                    percentual = float(municipio_especifico['percent_area_georef'])
                 else:
                     percentual = 0.0
             else:
                 # Para agregado - média dos percentuais
                 if 'percent_area_georef' in gdf_filtrado.columns:
-                    percentual = 100.0 - float(gdf_filtrado['percent_area_georef'].mean())
+                    percentual = float(gdf_filtrado['percent_area_georef'].mean())
                 else:
                     percentual = 0.0
             
@@ -479,54 +479,54 @@ predominante no município (aberta, intermediária e fechada) e nota específica
                         'tickwidth': 1, 
                         'tickcolor': "darkblue",
                         'tickmode': 'array',
-                        'tickvals': [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
-                        'ticktext': ['0%', '10%', '20%', '30%', '40%', '50%', '60%', '70%', '80%', '90%', '100%']
+                        'tickvals': [0, 25, 50, 75, 90, 100],
+                        'ticktext': ['0', '25', '50', '75', '90', '100']
                     },
                     'bar': {'color': "rgba(0,0,0,0)"},  # Barra invisível
                     'bgcolor': "white",
                     'borderwidth': 2,
                     'bordercolor': "gray",
                     'steps': [
-                        {'range': [0, 2.5], 'color': '#e74c3c'},
-                        {'range': [2.5, 5], 'color': '#e96a30'},
-                        {'range': [5, 7.5], 'color': '#ec8e2c'},
-                        {'range': [7.5, 10], 'color': '#f0a634'},
-                        {'range': [10, 12.5], 'color': '#f2b446'},
-                        {'range': [12.5, 15], 'color': '#f4c258'},
-                        {'range': [15, 17.5], 'color': '#f6d06a'},
-                        {'range': [17.5, 20], 'color': '#f7d87c'},
-                        {'range': [20, 22.5], 'color': '#f9e18e'},
-                        {'range': [22.5, 25], 'color': '#fae9a0'},
-                        {'range': [25, 27.5], 'color': '#f9f2b8'},
-                        {'range': [27.5, 30], 'color': '#f8f5c4'},
-                        {'range': [30, 32.5], 'color': '#eff4bf'},
-                        {'range': [32.5, 35], 'color': '#e7f3bb'},
-                        {'range': [35, 37.5], 'color': '#def2b6'},
-                        {'range': [37.5, 40], 'color': '#d6f0b2'},
-                        {'range': [40, 42.5], 'color': '#cdefad'},
-                        {'range': [42.5, 45], 'color': '#c5eda9'},
-                        {'range': [45, 47.5], 'color': '#bceba4'},
-                        {'range': [47.5, 50], 'color': '#b4e9a0'},
-                        {'range': [50, 52.5], 'color': '#abe79b'},
-                        {'range': [52.5, 55], 'color': '#a3e597'},
-                        {'range': [55, 57.5], 'color': '#9ae292'},
-                        {'range': [57.5, 60], 'color': '#92e08e'},
-                        {'range': [60, 62.5], 'color': '#89de89'},
-                        {'range': [62.5, 65], 'color': '#81db85'},
-                        {'range': [65, 67.5], 'color': '#78d880'},
-                        {'range': [67.5, 70], 'color': '#70d57c'},
-                        {'range': [70, 72.5], 'color': '#67d277'},
-                        {'range': [72.5, 75], 'color': '#5fcf73'},
-                        {'range': [75, 77.5], 'color': '#56cc6e'},
-                        {'range': [77.5, 80], 'color': '#4ec96a'},
-                        {'range': [80, 82.5], 'color': '#44c565'},
-                        {'range': [82.5, 85], 'color': '#3dc261'},
-                        {'range': [85, 87.5], 'color': '#36bf5c'},
-                        {'range': [87.5, 90], 'color': '#31bc5a'},
-                        {'range': [90, 92.5], 'color': '#2eb85b'},
-                        {'range': [92.5, 95], 'color': '#2cb55d'},
-                        {'range': [95, 97.5], 'color': '#29b15e'},
-                        {'range': [97.5, 100], 'color': '#27ae60'}
+                        {'range': [0, 2.5], 'color': '#27ae60'},
+                        {'range': [2.5, 5], 'color': '#29b15e'},
+                        {'range': [5, 7.5], 'color': '#2cb55d'},
+                        {'range': [7.5, 10], 'color': '#2eb85b'},
+                        {'range': [10, 12.5], 'color': '#31bc5a'},
+                        {'range': [12.5, 15], 'color': '#36bf5c'},
+                        {'range': [15, 17.5], 'color': '#3dc261'},
+                        {'range': [17.5, 20], 'color': '#44c565'},
+                        {'range': [20, 22.5], 'color': '#4ec96a'},
+                        {'range': [22.5, 25], 'color': '#56cc6e'},
+                        {'range': [25, 27.5], 'color': '#5fcf73'},
+                        {'range': [27.5, 30], 'color': '#67d277'},
+                        {'range': [30, 32.5], 'color': '#70d57c'},
+                        {'range': [32.5, 35], 'color': '#78d880'},
+                        {'range': [35, 37.5], 'color': '#81db85'},
+                        {'range': [37.5, 40], 'color': '#89de89'},
+                        {'range': [40, 42.5], 'color': '#92e08e'},
+                        {'range': [42.5, 45], 'color': '#9ae292'},
+                        {'range': [45, 47.5], 'color': '#a3e597'},
+                        {'range': [47.5, 50], 'color': '#abe79b'},
+                        {'range': [50, 52.5], 'color': '#b4e9a0'},
+                        {'range': [52.5, 55], 'color': '#bceba4'},
+                        {'range': [55, 57.5], 'color': '#c5eda9'},
+                        {'range': [57.5, 60], 'color': '#cdefad'},
+                        {'range': [60, 62.5], 'color': '#d6f0b2'},
+                        {'range': [62.5, 65], 'color': '#def2b6'},
+                        {'range': [65, 67.5], 'color': '#e7f3bb'},
+                        {'range': [67.5, 70], 'color': '#eff4bf'},
+                        {'range': [70, 72.5], 'color': '#f8f5c4'},
+                        {'range': [72.5, 75], 'color': '#f9f2b8'},
+                        {'range': [75, 77.5], 'color': '#fae9a0'},
+                        {'range': [77.5, 80], 'color': '#f9e18e'},
+                        {'range': [80, 82.5], 'color': '#f7d87c'},
+                        {'range': [82.5, 85], 'color': '#f6d06a'},
+                        {'range': [85, 87.5], 'color': '#f4c258'},
+                        {'range': [87.5, 90], 'color': '#f2b446'},
+                        {'range': [90, 92.5], 'color': '#f0a634'},
+                        {'range': [92.5, 95], 'color': '#ec8e2c'},
+                        {'range': [95, 97.5], 'color': '#e96a30'},
+                        {'range': [97.5, 100], 'color': '#e74c3c'}
                     ],
                     'threshold': {
                         'line': {'color': "darkblue", 'width': 4},
@@ -627,17 +627,14 @@ predominante no município (aberta, intermediária e fechada) e nota específica
         st.markdown("<h3 style='text-align: center;'>Composição Média dos Graus de Dificuldade por UF</h3>", unsafe_allow_html=True)
 
         # Selecionar colunas principais de notas
-        colunas_notas = ["nota_veg", "nota_area", "nota_relevo", "nota_insalub_media",
-                        "nota_p_q1", "nota_p_q2", "nota_p_q3", "nota_p_q4"]
+        colunas_notas = ["nota_veg", "nota_area", "nota_relevo", "nota_insalub_2",
+                        "nota_total_q1", "nota_total_q2", "nota_total_q3", "nota_total_q4"]
         colunas_presentes = [c for c in colunas_notas if c in gdf_filtrado.columns]
 
         if len(colunas_presentes) >= 3:
-            # Filtrar apenas por UF (ignorando filtro de município para este gráfico)
-            gdf_por_uf = gdf[gdf["SIGLA_UF"].isin(uf_sel)]
-            
             # Calcular média das notas por UF
             df_uf = (
-                gdf_por_uf.groupby("SIGLA_UF")[colunas_presentes]
+                gdf_filtrado.groupby("SIGLA_UF")[colunas_presentes]
                 .mean()
                 .reset_index()
             )
@@ -648,23 +645,23 @@ predominante no município (aberta, intermediária e fechada) e nota específica
 
             # Dicionário de legendas amigáveis (ordem invertida para legenda)
             legendas = {
-                "nota_p_q1": "Clima T1",
-                "nota_p_q2": "Clima T2",
-                "nota_p_q3": "Clima T3",
-                "nota_p_q4": "Clima T4",
-                "nota_insalub_media": "Insalubridade",
+                "nota_total_q1": "Clima T1",
+                "nota_total_q2": "Clima T2",
+                "nota_total_q3": "Clima T3",
+                "nota_total_q4": "Clima T4",
+                "nota_insalub_2": "Insalubridade",
                 "nota_relevo": "Relevo",
-                "nota_area": "Área",
+                "nota_area": "Área CAR",
                 "nota_veg": "Vegetação",
             }
 
             # Paleta suave consistente com o restante do app
             cores = {
-                "nota_p_q1": "#6C9BCF",
-                "nota_p_q2": "#8BB8E8", 
-                "nota_p_q3": "#A9CCE3",
-                "nota_p_q4": "#C5DEDD",
-                "nota_insalub_media": "#9AD0EC",
+                "nota_total_q1": "#6C9BCF",
+                "nota_total_q2": "#8BB8E8", 
+                "nota_total_q3": "#A9CCE3",
+                "nota_total_q4": "#C5DEDD",
+                "nota_insalub_2": "#9AD0EC",
                 "nota_relevo": "#C9E4F3",
                 "nota_area": "#A3C4BC",
                 "nota_veg": "#F2E8CF"
@@ -674,8 +671,8 @@ predominante no município (aberta, intermediária e fechada) e nota específica
             fig_empilhado = go.Figure()
 
             # Adicionar traços na ordem da legenda (invertida)
-            ordem_legenda = ["nota_p_q1", "nota_p_q2", "nota_p_q3", "nota_p_q4",
-                            "nota_insalub_media", "nota_relevo", "nota_area", "nota_veg"]
+            ordem_legenda = ["nota_total_q1", "nota_total_q2", "nota_total_q3", "nota_total_q4",
+                            "nota_insalub_2", "nota_relevo", "nota_area", "nota_veg"]
             
             # Filtrar apenas colunas presentes
             ordem_legenda = [col for col in ordem_legenda if col in colunas_presentes]
